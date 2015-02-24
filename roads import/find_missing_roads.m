@@ -14,9 +14,9 @@ function find_missing_roads
 %
 % If all goes well, it will create a file missing.osm in the current directory.
 % 
-% Contributors:
-%   Henry Haselgrove
-% 
+%
+% Henry Haselgrove
+
 
 % Set the following to 0 for standard behaviour:
 only_find_missing_names = 1;

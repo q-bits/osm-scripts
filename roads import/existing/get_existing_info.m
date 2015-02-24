@@ -1,18 +1,40 @@
-% load tags
-% load nodes
-% load ways    %ways wids wnids wstarts wlens
+function get_existing_info
+
+% GET_EXISTING_INFO
+%
+% Extract names, highway tags, and bounding boxes
+% from the files tags.mat, nodes.mat and ways.mat,
+% and save them in the more convenient files 
+% way_names.mat and bboxes.mat
+%
+% Assumes you have already run (for example) the following
+% in the current directory:
+%  readnodes2('existing highways 21 feb 2015.osm');
+%
+%
+% Henry Haselgrove
+
+load tags all_tags all_tag_strings
+load nodes
+load ways    %ways wids wnids wstarts wlens
 
 
-% ignore relations for the time being
+% Ignore relations for the time being
 
 nn=length(nids);
 nw=length(wids);
 
-assert(strcmp( all_tags{2}{2} , '"name"'));
-assert(strcmp( all_tags{2}{1} , '"highway"'));
+keys={'"name"','"highway"'};
+kinds = [0,0];
+for j=1:2
+    kinds(j) = find(strcmp(all_tags{2}, keys{j}));
+end
 
-way_names = all_tag_strings{2}(2,:);
-highways=all_tag_strings{2}(1,:);
+%assert(strcmp( all_tags{2}{2} , '"name"'));
+%assert(strcmp( all_tags{2}{1} , '"highway"'));
+
+way_names = all_tag_strings{2}( kinds(1)  ,:);
+highways=all_tag_strings{2}(  kinds(2) ,:) ;
 
 for j=1:length(way_names)
     if isempty(way_names{j})
@@ -24,13 +46,8 @@ end
 
 save way_names way_names highways
 
-%[nidoffset, ninds] = invert_sp(nids);
-%[widoffset, winds] = invert_sp(wids);
-%[ridoffset, rinds] = invert(rids);
-
 
 ninds=spconvert([nids,  0*nids+1,  (1:length(nids))' ]);
-winds=spconvert([wids,  0*wids+1,  (1:length(wids))']);
 
 % Calculate way bounding boxes
 ex0s = zeros(nw,1);

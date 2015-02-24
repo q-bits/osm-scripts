@@ -1,12 +1,17 @@
 function readnodes2(fn)
 
-if nargin<1
-    fn='C:\Users\henry\Downloads\data.sa.gov\water\Watercourses clipped to KI\Watercourse clipped to KI.osm';
-end
+% READNODES2(FN)
+%
+% Read the .osm file with filename FN, and save the
+% information contained in that file to the matlab .MAT files
+% nodes.mat, tags.mat, ways.mat, relations.mat and lines.mat
+%
+% Henry haselgrove
+
+
 fid=fopen(fn,'rb');
 
-
-write_tags = 1;
+write_tags = 0;
 
 if write_tags
    fid1=fopen('tags1.txt','w');
