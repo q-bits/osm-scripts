@@ -1,8 +1,14 @@
 function process_processed
 
+% PROCESS_PROCESSED
+%
+% See https://wiki.openstreetmap.org/wiki/Import/South_Australian_Waterbodies
+%
+% Assumes you have already run the following in the current directory:
+%    readnodes2('processed.osm') 
+%
+% Henry Haselgrove
 
-
-% readnodes2('processed.osm')
 
 
 load nodes.mat    %nids lats lons
@@ -27,24 +33,14 @@ inids(nids) = 1:length(nids);
 
 wninds = inids(wnids);
 
-%wnids=[]; % Get rid of wnids so we don't accidentally use it
-
-%%%%% Deduplicate nodes (replace wnids entries by canonical values)
-
-% Create wstartninds, wendninds, wninds_cell, names
-%wstartninds = wninds(wstarts);
-%wendninds = wninds(wstarts+wlens-1);
-%wnids_cell = cell(nw,1);
 wninds_cell = cell(nw,1);
 
 for j=1:nw
     i0 = wstarts(j);
     i1 = i0 + wlens(j)-1;
-    %wnids_cell{j} = wnids(i0:i1);
     wninds_cell{j} = wninds(i0:i1);
 end
 
-%Create wtags_cell
 wtags_cell=cell(nw,1);
 for j=1:nw
     wtags_cell{j} = {  all_tags{2}, all_tag_strings{2}(:,j) };
@@ -62,13 +58,9 @@ for j=1:nr
     
 end
 
-
-
-
 nw = length(wninds_cell);
 
 for j=1:nw
-    %if streamord(j)>=3 || ~isempty(names{j});
     inds = wninds_cell{j};
     dup_nodes=[];
     for k=1:length(inds)-1
@@ -193,17 +185,13 @@ fido=fopen('processed_processed.osm','w');
 fprintf(fido,'<?xml version=''1.0'' encoding=''UTF-8''?>\n');
 fprintf(fido,'<osm version=''0.6'' upload=''false'' generator=''process_watercourses.m''>\n');
 
-%used_nodes=unique(used_nodes);
-%nids = -[1:length(used_nodes)];
-%output_nids=0*lats + NaN;
-%output_nids(used_nodes)=nids;
+
 nn=length(lats);
 for j=1:nn
     lat=lats(j);
     lon=lons(j);
     fprintf(fido,'<node id=''%d'' visible=''true'' lat=''%13.11f'' lon=''%13.11f'' />\n', -nids(j), lat,lon);
 end
-%wid = -length(used_nodes)-1;
 
 
 
