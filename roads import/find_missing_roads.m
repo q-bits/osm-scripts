@@ -19,7 +19,7 @@ function find_missing_roads
 
 
 % Set the following to 0 for standard behaviour:
-only_find_missing_names = 1;
+only_find_missing_names = 0;
 
 % "all_tag_strings" takes a long time to load,
 % hence we put it in a global variable to
