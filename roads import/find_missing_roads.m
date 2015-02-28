@@ -13,13 +13,37 @@ function find_missing_roads
 %   get_existing_info;
 %
 % If all goes well, it will create a file missing.osm in the current directory.
-% 
+%
 %
 % Henry Haselgrove
 
 
+include_different_road_type=0;
+include_other=1;
+
+
 % Set the following to 0 for standard behaviour:
 only_find_missing_names = 0;
+
+cost_threshold=200;
+
+
+fprintf('Based on your choice of "include_different_road_type" and "include_other",\n');
+fprintf('the following ways will be kept:\n');
+if include_different_road_type==1 && include_other==0
+    fprintf('  -- only those which appear to be present in OSM with a different road type.\n');
+    fn='different_road_type.osm';
+elseif include_different_road_type==0 && include_other==1
+    fprintf('  -- those which are missing (or misnamed) in OSM, but excluding those\n');
+    fprintf('     which appear to be present in OSM with a different road type.\n');
+    fn='missing.osm';
+elseif include_different_road_type==1 && include_other==1
+    fprintf('  -- all those which are missing (or misnamed) in OSM\n');
+    fn='missing_all.osm';
+else
+    warning('The values you chose for include_different_road_type and include_other don''t make sense.');
+    fn='warning.osm';
+end
 
 % "all_tag_strings" takes a long time to load,
 % hence we put it in a global variable to
@@ -49,10 +73,10 @@ for j=1:length(tns)
     for k=1:length(all_tag_strings{2}(tis(1),:))
         q=all_tag_strings{2}{tis(j),k};
         if isempty(q)
-          all_tag_strings{2}{tis(j),k}='';
+            all_tag_strings{2}{tis(j),k}='';
         end
     end
-
+    
 end
 
 
@@ -66,32 +90,49 @@ ROUTENUM =  all_tag_strings{2}(tis(6),:);
 ONTYPE =    all_tag_strings{2}(tis(7),:);
 TYPESUFFIX =all_tag_strings{2}(tis(8),:);
 
+unique_road_types={};
+tmp = lower(unique(ROADTYPE));
+for i=1:length(tmp)
+    if ~isempty(tmp{i})
+        unique_road_types{end+1}=tmp{i};
+    end
+end
+
 nw = length(wids);
 nn = length(nids);
 
 % Create names, constructed from NAME, ROADTYPE and TYPESUFFIX
 names=cell(nw,1);
 canonical_names=names;
+canonical_names_no_suffix=names;
+canonical_base_names=names;
 for j=1:nw
     x=NAME{j};
     if isempty(x);
         names{j}='';
+        canonical_names{j}='';
+        canonical_base_names{j}='';
+        canonical_names_no_suffix{j}='';
         continue;
     end
     rt = ROADTYPE{j};
     if ~isempty(rt)
         x=[x,' ',rt];
     end
+    
+    canonical_names_no_suffix{j}=canonical_form(x);
+    
     ts=TYPESUFFIX{j};
     if ~isempty(ts)
         x=[x,' ',ts];
     end
+    
     x=strtrim(lower(x));
     names{j}=x;
-    x=delete_xml_codes(x);
-    f = (x>='a' & x <='z') | (x>='0' & x<='9');
-    x=x(f);
-    canonical_names{j}=x;
+    
+    canonical_names{j}=canonical_form(x);
+   
+    canonical_base_names{j}=canonical_form(NAME{j});    
 end
 
 % Construct some data structures that allow fast mapping
@@ -100,7 +141,7 @@ nidoffset = 1-min(nids);
 ninds=spconvert([nids+nidoffset,  0*nids+1,  (1:length(nids))' ]);
 wninds = full(ninds(wnids+nidoffset));
 
-% Calculate bounding boxes 
+% Calculate bounding boxes
 wx0s = zeros(nw,1);
 wx1s = wx0s;
 wy0s = wx0s;
@@ -125,13 +166,26 @@ end
 
 % Put the existing way names in "canonical form" for purposes of comparison.
 % (Deletes whitespace & punctuation)
+canonical_existing_names = way_names;
+canonical_existing_base_names = way_names;
+existing_road_types=way_names;
+
 for j=1:length(way_names)
-    x=way_names{j};    
-    x=delete_xml_codes(x);
-    assert(~any(x=='&'));
-    f = (x>='a' & x <='z') | (x>='0' & x<='9');
-    x=x(f);
-    way_names{j}=x;
+    x=way_names{j};
+    canonical_existing_names{j}=canonical_form(x);
+    
+    x=way_names{j};
+    x=strtrim(x);
+    q=find(x==' ',1,'last');
+    if length(q)==1
+        y = x(q+1:end);
+        x=x(1:q-1);
+    end
+
+    canonical_existing_base_names{j}=canonical_form(x);
+    existing_road_types{j} = lower(y);
+    
+    
 end
 
 
@@ -141,6 +195,7 @@ latscale = Re * 2*pi/360;
 lonscale = Re * cos(35.6 * 2 * pi/360) * 2 * pi/360;
 
 way_is_missing=zeros(nw,1);
+way_is_different_road_type=zeros(nw,1);
 node_is_missing = zeros(nn,1);
 
 
@@ -148,54 +203,97 @@ node_is_missing = zeros(nn,1);
 % missing in the existing data
 p=0;
 [snames,sind]=sort(canonical_names);
-[sway_names,sinde] = sort(way_names);
-kk=1;
+[sway_names,sinde] = sort(canonical_existing_names);
+
 mincosts = zeros(nw,1);     %(experimenting with a new idea)
 closest_existing=zeros(nw,1);  %(experimenting with a new idea)
 fprintf('Searching for roads in data.sa.gov.au that might be missing...\n');
-for jj=1:nw   
+canonical_existing_index = create_string_index(sway_names, 4);
+
+[sbway_names, sbinde] = sort(canonical_existing_base_names);
+canonical_existing_base_index = create_string_index(sbway_names, 4);
+
+
+for jj=1:nw
     p2 = fix(100*jj/nw);
     if p2>p
         p=p2;
         fprintf('%d %%\n',p);
         drawnow;
     end
-        
+    
     j=sind(jj);
     x = canonical_names{j};
     if isempty(x); continue;end;
     if strcmp(x,'null'); continue;end
-
-    is_existing=0;
-    kk0=[];
-  
-    % Find all nodes in OSM data with the same name
-    while cstrcmp(way_names{sinde(kk)}, x) <=0 && kk<=length(way_names)
-        k=sinde(kk);
-
-        if strcmp(way_names{k}, x)
-            if isempty(kk0)
-                kk0=kk;
-            end
-            k=sinde(kk);
-            
-            % How far apart are two bounding boxes?
-            dx=interval_dist(wx0s(j), wx1s(j), ex0s(k), ex1s(k));
-            dy=interval_dist(wy0s(j), wy1s(j), ey0s(k), ey1s(k));
-            d=max([dx*lonscale,dy*latscale]);
-            if d<100
-                is_existing=1;
-                break;
-            end
-        end
-        kk=kk+1;
-    end
-    if ~isempty(kk0)
-        kk=kk0;
+    %if ~isempty(strfind(x,'elberry'))
+    %    disp(0);
+    %end
+    
+    x2 = canonical_names_no_suffix{j};
+    if strcmp(x,x2)
+        xs={x};nx=1;
+    else
+        xs={x,x2};nx=2;
     end
     
+    
+    is_existing=0;
+    is_different_road_type=0;
+    similar_name='';
+    % Find all nodes in OSM data with the same name
+    %while cstrcmp(canonical_existing_names{sinde(kk)}, x) <=0 && kk<=length(canonical_existing_names)
+    for xi=1:nx
+        x=xs{xi};
+        val = string_to_val(x, 4);
+        for kk=canonical_existing_index(val+1):(canonical_existing_index(val+2)-1)
+            k=sinde(kk);
+            
+            if strcmp(canonical_existing_names{k}, x)
+                % How far apart are two bounding boxes?
+                dx=interval_dist(wx0s(j), wx1s(j), ex0s(k), ex1s(k));
+                dy=interval_dist(wy0s(j), wy1s(j), ey0s(k), ey1s(k));
+                d=max([dx*lonscale,dy*latscale]);
+                if d<75
+                    is_existing=1;
+                    break;
+                end
+            end
+        end
+    end
+    
+    % If nothing found, look again but allow a different road type
+    % (street, lane, etc)
+    if is_existing==0 
+        xbase = canonical_base_names{j};
+        val = string_to_val(xbase, 4);
+        for kk=canonical_existing_base_index(val+1):(canonical_existing_base_index(val+2)-1)
+            k=sbinde(kk);
+            
+            if strcmp(canonical_existing_base_names{k}, xbase)
+                
+                
+                if any(strcmp(unique_road_types, existing_road_types{k}))  % Road suffix typo shouldn't count as "similar"
+                    
+                    % How far apart are two bounding boxes?
+                    dx=interval_dist(wx0s(j), wx1s(j), ex0s(k), ex1s(k));
+                    dy=interval_dist(wy0s(j), wy1s(j), ey0s(k), ey1s(k));
+                    d=max([dx*lonscale,dy*latscale]);
+                    if d<75
+                        is_different_road_type=1;
+                        break;
+                    end
+                end
+            end
+        end
+    end
     if is_existing==0
-        way_is_missing(j)=1;     
+        way_is_missing(j)=1;
+    end
+    
+    if is_different_road_type
+        
+        way_is_different_road_type(j)=1;
     end
 end
 
@@ -213,12 +311,25 @@ for j=1:nw
     wninds_cell{j} = wninds(i0:i1);
 end
 
+save_way = logical(0*way_is_missing);
 
-% Combine ways that have a unique other joining way of equal CLASS, SURFACE, NAME, ONE_WAY, ROADTYPE, TYPESUFFIX  
+if include_different_road_type
+    save_way = save_way | (way_is_missing==1 & way_is_different_road_type==1);
+end
+if include_other
+    save_way = save_way | (way_is_missing==1 & way_is_different_road_type==0);
+end
+
+
+
+
+% Of the ways that we will save...
+% Combine ways that have a unique other joining way of equal CLASS, SURFACE, NAME, ONE_WAY, ROADTYPE, TYPESUFFIX
 pass=0;
 while(1)
     pass=pass+1;
     fprintf('pass %d\n',pass);
+    drawnow;
     nnu=0;
     i=0;
     
@@ -227,11 +338,11 @@ while(1)
     while i<length(wstartninds)
         i=i+1;
         
-        if ~way_is_missing(i); continue;end
+        if ~save_way(i); continue;end
         
         ind_end = wendninds(i);
         ind_start = wstartninds(i);
-
+        
         %TODO: cleverly combine duplicated code in the rest of this while loop
         
         
@@ -241,15 +352,15 @@ while(1)
         js=[];
         for k=1:length(js_)
             j=js_(k);
-            if ~way_is_missing(j); continue;end
+            if ~save_way(j); continue;end
             if strcmp(CLASS{i},CLASS{j}) ...
                     && strcmp(SURFACE{i}, SURFACE{j}) ...
                     && strcmp(NAME{i}, NAME{j}) ...
                     && strcmp(ONE_WAY{i}, ONE_WAY{j}) ...
-                    && strcmp(ROUTENUM{i}, ROUTENUM{j}) ...         
+                    && strcmp(ROUTENUM{i}, ROUTENUM{j}) ...
                     && strcmp(ROADTYPE{i}, ROADTYPE{j}) ...
                     && strcmp(ONTYPE{i}, ONTYPE{j}) ...
-                    && strcmp(TYPESUFFIX{i}, TYPESUFFIX{j}) 
+                    && strcmp(TYPESUFFIX{i}, TYPESUFFIX{j})
                 js(end+1)=j;
             end
         end
@@ -264,7 +375,7 @@ while(1)
             wx0s(i) = min([wx0s(i),wx0s(j)]); wx1s(i)=max([wx1s(j),wx1s(i)]);
             wy0s(i) = min([wy0s(i),wy0s(j)]); wy1s(i)=max([wy1s(j),wy1s(i)]);
             
-            way_is_missing(j)=0;
+            save_way(j)=0;
             
             change=1;
             
@@ -277,7 +388,7 @@ while(1)
         js=[];
         for k=1:length(js_)
             j=js_(k);
-            if ~way_is_missing(j); continue;end
+            if ~save_way(j); continue;end
             if strcmp(CLASS{i},CLASS{j}) ...
                     && strcmp(SURFACE{i}, SURFACE{j}) ...
                     && strcmp(NAME{i}, NAME{j}) ...
@@ -303,7 +414,7 @@ while(1)
             wstartninds(i) = wninds_cell{i}(1);
             wx0s(i) = min([wx0s(i),wx0s(j)]); wx1s(i)=max([wx1s(j),wx1s(i)]);
             wy0s(i) = min([wy0s(i),wy0s(j)]); wy1s(i)=max([wy1s(j),wy1s(i)]);
-            way_is_missing(j)=0;
+            save_way(j)=0;
             change=1;
         end
         
@@ -314,7 +425,7 @@ while(1)
         js=[];
         for k=1:length(js_)
             j=js_(k);
-            if ~way_is_missing(j); continue;end
+            if ~save_way(j); continue;end
             if strcmp(CLASS{i},CLASS{j}) ...
                     && strcmp(SURFACE{i}, SURFACE{j}) ...
                     && strcmp(NAME{i}, NAME{j}) ...
@@ -343,7 +454,7 @@ while(1)
             wx0s(i) = min([wx0s(i),wx0s(j)]); wx1s(i)=max([wx1s(j),wx1s(i)]);
             wy0s(i) = min([wy0s(i),wy0s(j)]); wy1s(i)=max([wy1s(j),wy1s(i)]);
             
-            way_is_missing(j)=0;
+            save_way(j)=0;
             change=1;
         end
         
@@ -354,13 +465,13 @@ while(1)
     if change==0;break;end
 end
 
-fprintf('%d ways after joining.\n',sum(way_is_missing));
+fprintf('%d ways will be saved.\n',sum(save_way));
 
 
 % Experimentation purposes: detect roads that only need a name added in OSM
 if only_find_missing_names
     for j=1:nw
-        if way_is_missing(j)==0;continue;end
+        if save_way(j)==0;continue;end
         % Search for possible existing geometry match
         wdx = wx1s(j) - wx0s(j);
         wdy = wy1s(j) - wy0s(j);
@@ -379,18 +490,18 @@ if only_find_missing_names
         [mc, ce]=min(costs);
         mincosts(j)=mc;
         closest_existing(j)=ce;
-        if mc<48 && isempty(way_names{ce})
+        if mc<cost_threshold && isempty(way_names{ce})
             
         else
-            way_is_missing(j)=0;
+            save_way(j)=0;
         end
     end
-    fprintf('%d ways after testing for matching geom and empty name.\n',sum(way_is_missing));
+    fprintf('%d ways after testing for matching geom and empty name.\n',sum(save_way));
 end
 
 
 for j=1:nw
-    if way_is_missing(j)
+    if save_way(j)
         these_wninds = wninds_cell{j};
         node_is_missing(these_wninds)=1;
     end
@@ -412,7 +523,8 @@ end
 
 
 
-fido=fopen('missing.osm','w');
+
+fido=fopen(fn,'w');
 
 fprintf(fido,'<?xml version=''1.0'' encoding=''UTF-8''?>\n');
 fprintf(fido,'<osm version=''0.6'' upload=''true'' generator=''JOSM''>\n');
@@ -424,13 +536,14 @@ for j=1:nlines
     end
 end
 missing_names={};
+unrecognised_class_strings={};
 for j=1:nw
-    if ~way_is_missing(j); continue;end
+    if ~save_way(j); continue;end
     wninds = wninds_cell{j};
     ns = nids(wninds);
     
     fprintf(fido,'<way id=''%ld'' visible=''true''>\n',wids(j));
-  
+    
     if strcmp(ONE_WAY{j},'TF')
         ns = ns(end:-1:1);
     end
@@ -438,7 +551,7 @@ for j=1:nw
     for k=1:length(ns)
         fprintf(fido,' <nd ref=''%ld'' />\n',ns(k));
     end
-  
+    
     
     name=names{j};
     name=titlecase(name);
@@ -455,7 +568,7 @@ for j=1:nw
             h='secondary';
         case 'COLL'
             h='tertiary';
-        case 'LOCL' 
+        case 'LOCL'
             
             % A "LOCL" road can correspond to either an OSM unclassified or residental highway.
             % Try to determine which.
@@ -480,19 +593,20 @@ for j=1:nw
             end
             %fprintf('%d %d\n',num_residential,num_unclassified);
             if num_residential > num_unclassified
-                 h='residential';
+                h='residential';
             else
-                 h='unclassified';
+                h='unclassified';
             end
             
-   
+            
         case 'TRK2'
             h='track';
         case 'TRK4'
             h='track';
         otherwise
             %TODO: figure out what to do with other values of CLASS
-            fprintf('CLASS=%d\n',CLASS{j});
+            %fprintf('CLASS=%d\n',CLASS{j});
+            unrecognised_class_strings{end+1}=CLASS{j};
             h='unclassified';
     end
     writetag( fido, 'highway',h);
@@ -509,7 +623,7 @@ for j=1:nw
     if strcmp(ONE_WAY{j},'TF') ||  strcmp(ONE_WAY{j},'FT')
         writetag(fido,'oneway','yes');
     end
-      
+    
     writetag(fido,'ref',ROUTENUM{j});
     
     switch ONTYPE{j}
@@ -524,7 +638,7 @@ for j=1:nw
     end
     
     writetag(fido,'source','data.sa.gov.au');
-        
+    
     % TODO : *-link highways ?
     
     if only_find_missing_names
@@ -538,9 +652,18 @@ fprintf(fido,'</osm>\n');
 fclose('all');
 save missing_names missing_names
 
-% TODO: Improve titlecase function! 
+u = unique(unrecognised_class_strings);
+if length(u)>0
+    fprintf('Note: unrecognised CLASS strings were encountered: ');
+    disp(u);
+    fprintf('\n');
+end
+
+fprintf('Wrote file %s\n',fn);
+
+% TODO: Improve titlecase function!
 %   E.g. should detect acronyms like ETSA, NW, SWER
-%   
+%
 function x = titlecase(x)
 
 x=lower(x);
@@ -587,14 +710,70 @@ else
     d(f1)=a0(f1)-b1;
 end
 
+function x=canonical_form(x)
+x=lower(x);
+x=delete_xml_codes(x);
+assert(~any(x=='&'));
+f = (x>='a' & x <='z') | (x>='0' & x<='9');
+x=x(f);
+
 function x = delete_xml_codes(x)
-    x=strrep(x,'&amp;',' ');
-    x=strrep(x,'&apos;',' ');
-    x=strrep(x,'&quot;',' ');
-    x=strrep(x,'&lt;',' ');
-    x=strrep(x,'&gt;',' ');
+x=strrep(x,'&amp;',' ');
+x=strrep(x,'&apos;',' ');
+x=strrep(x,'&quot;',' ');
+x=strrep(x,'&lt;',' ');
+x=strrep(x,'&gt;',' ');
+
+if any(x=='&'); disp(x);end
+
+function s=startswith(x,y)
+if length(y)>length(x)
+    s=0;
+    return;
+end
+
+x=x(1:length(y));
+s=strcmp(x,y);
+return;
+
+
+function y=string_to_val(x, nc)
+
+n=min([length(x), nc]);
+
+y=x(1:n);
+
+if n<nc
+    y=[y,repmat('/',1,nc-n)];
+end
+
+
+y=double(y-'/');
+y(y>49) = y(y>49) - 39;
+
+y = sum(y .* (37.^ (nc-1:-1:0)  ));
+
+
+function index = create_string_index(strings, nc)
+
+% index(j) stores the first index into strings that the value j-1 or greater occurrs
+%
+% ... or stores length(strings)+1
+ns=length(strings);
+
+N = 37^nc+1;
+
+index=zeros(N,1);
+maxy = -1;
+for j=1:ns
+    y = string_to_val(strings{j},nc);
+    if y==maxy
+        continue;
+    end
+    assert(y>maxy);
     
-    if any(x=='&'); disp(x);end
-
-
-
+    index(maxy+1+1:y+1) = j;
+    
+    maxy=y;
+end
+index(maxy+1:1:end) = ns+1;
