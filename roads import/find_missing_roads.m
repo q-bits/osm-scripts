@@ -24,25 +24,26 @@ include_other=1;
 
 % Set the following to 0 for standard behaviour:
 only_find_missing_names = 0;
-
 cost_threshold=200;
+fprintf('-----------------------------\n');
+fprintf('include_different_road_type=%d\n',include_different_road_type);
+fprintf('include_other=%d\n',include_other);
 
-
-fprintf('Based on your choice of "include_different_road_type" and "include_other",\n');
+fprintf('Based on your choice of those parameters,\n');
 fprintf('the following ways will be kept:\n');
 if include_different_road_type==1 && include_other==0
     fprintf('  -- only those which appear to be present in OSM with a different road type.\n');
-    fn='different_road_type.osm';
+    output_fn='different_road_type.osm';
 elseif include_different_road_type==0 && include_other==1
     fprintf('  -- those which are missing (or misnamed) in OSM, but excluding those\n');
     fprintf('     which appear to be present in OSM with a different road type.\n');
-    fn='missing.osm';
+    output_fn='missing.osm';
 elseif include_different_road_type==1 && include_other==1
     fprintf('  -- all those which are missing (or misnamed) in OSM\n');
-    fn='missing_all.osm';
+    output_fn='missing_all.osm';
 else
     warning('The values you chose for include_different_road_type and include_other don''t make sense.');
-    fn='warning.osm';
+    output_fn='warning.osm';
 end
 
 % "all_tag_strings" takes a long time to load,
@@ -524,10 +525,10 @@ end
 
 
 
-fido=fopen(fn,'w');
+fido=fopen(output_fn,'w');
 
 fprintf(fido,'<?xml version=''1.0'' encoding=''UTF-8''?>\n');
-fprintf(fido,'<osm version=''0.6'' upload=''true'' generator=''JOSM''>\n');
+fprintf(fido,'<osm version=''0.6'' upload=''false'' generator=''JOSM''>\n');
 
 for j=1:nlines
     x=lines{j};
@@ -659,7 +660,7 @@ if length(u)>0
     fprintf('\n');
 end
 
-fprintf('Wrote file %s\n',fn);
+fprintf('Wrote file %s\n',output_fn);
 
 % TODO: Improve titlecase function!
 %   E.g. should detect acronyms like ETSA, NW, SWER
