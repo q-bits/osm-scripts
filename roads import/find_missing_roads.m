@@ -379,7 +379,7 @@ while(1)
             save_way(j)=0;
             
             change=1;
-            
+            continue;
         end
         
         
@@ -417,6 +417,7 @@ while(1)
             wy0s(i) = min([wy0s(i),wy0s(j)]); wy1s(i)=max([wy1s(j),wy1s(i)]);
             save_way(j)=0;
             change=1;
+            continue;
         end
         
         
@@ -457,6 +458,7 @@ while(1)
             
             save_way(j)=0;
             change=1;
+            continue;
         end
         
         
