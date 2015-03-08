@@ -234,7 +234,12 @@ for jj=1:nw
     if isempty(x); continue;end;
     if strcmp(x,'null'); continue;end
     if strcmp(x,'parkingbay');continue;end
-   
+    xx=names{j};
+    if ~isempty(strfind(xx,'ramp from')) || ~isempty(strfind(xx,'ramp to'))
+        continue;
+    end
+    if ~isempty(strfind(x,'slipway')); continue;end
+    
     %if ~isempty(strfind(x,'elberry'))
     %    disp(0);
     %end
