@@ -21,13 +21,17 @@ function find_missing_roads
 include_different_road_type=0;
 include_other=1;
 
+add_source_equals_datasa_tag=0;
 
 % Set the following to 0 for standard behaviour:
 only_find_missing_names = 0;
 cost_threshold=200;
 fprintf('-----------------------------\n');
-fprintf('include_different_road_type=%d\n',include_different_road_type);
-fprintf('include_other=%d\n',include_other);
+fprintf(' Settings:\n');
+fprintf('   include_different_road_type = %d\n',include_different_road_type);
+fprintf('   include_other = %d\n',include_other);;
+fprintf('   add_source_equals_datasa_tag = %d\n',add_source_equals_datasa_tag);
+fprintf('-----------------------------\n');
 
 fprintf('Based on your choice of those parameters,\n');
 fprintf('the following ways will be kept:\n');
@@ -189,6 +193,7 @@ for j=1:length(way_names)
     
 end
 
+%save existing_road_types existing_road_types
 
 % Some crude conversion factors from degrees to meters
 Re = 6371000;
@@ -222,11 +227,14 @@ for jj=1:nw
         fprintf('%d %%\n',p);
         drawnow;
     end
+    if mod(jj,1000)==0;drawnow;end
     
     j=sind(jj);
     x = canonical_names{j};
     if isempty(x); continue;end;
     if strcmp(x,'null'); continue;end
+    if strcmp(x,'parkingbay');continue;end
+   
     %if ~isempty(strfind(x,'elberry'))
     %    disp(0);
     %end
@@ -640,7 +648,9 @@ for j=1:nw
             writetag(fido,'layer','-1');
     end
     
-    writetag(fido,'source','data.sa.gov.au');
+    if add_source_equals_datasa_tag
+        writetag(fido,'source','data.sa.gov.au');
+    end
     
     % TODO : *-link highways ?
     

@@ -429,7 +429,7 @@ wstarts=wstarts(1:wind);
 wlens=wlens(1:wind);
 w_line_starts=w_line_starts(1:wind);
 w_line_ends=w_line_ends(1:wind);
-save ways wids wnids wstarts wlens w_line_starts w_line_ends fn bfn
+
 
 
 nids=nids(1:ind);
@@ -438,10 +438,10 @@ lons=lons(1:ind);
 n_line_starts=n_line_starts(1:ind);
 n_line_ends=n_line_ends(1:ind);
 
-save nodes nids lats lons n_line_starts n_line_ends fn bfn
 
 
-save tags all_tags all_tag_values all_tag_double_values all_tag_strings fn bfn
+
+
 
 
 rids=rids(1:rind);
@@ -453,9 +453,13 @@ r_line_starts=r_line_starts(1:rind);
 r_line_ends=r_line_ends(1:rind);
 rmids=rmids(1:rmind);
 roles=roles(1:rmind);
-save relations rids rlens rstarts rmids rtypes rest_of_file rtypes_cell roles r_line_starts r_line_ends fn bfn
+
 
 
 lines=lines(1:line_no);
 save lines lines fn bfn
+save ways wids wnids wstarts wlens w_line_starts w_line_ends fn bfn
+save nodes nids lats lons n_line_starts n_line_ends fn bfn
+save tags all_tags all_tag_values all_tag_double_values all_tag_strings fn bfn
+save relations rids rlens rstarts rmids rtypes rest_of_file rtypes_cell roles r_line_starts r_line_ends fn bfn
 
