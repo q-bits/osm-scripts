@@ -21,6 +21,8 @@ function find_missing_roads
 include_different_road_type=0;
 include_other=1;
 
+only_tertiary_residential_unclassified=1;
+
 add_source_equals_datasa_tag=0;
 
 % Set the following to 0 for standard behaviour:
@@ -31,6 +33,7 @@ fprintf(' Settings:\n');
 fprintf('   include_different_road_type = %d\n',include_different_road_type);
 fprintf('   include_other = %d\n',include_other);;
 fprintf('   add_source_equals_datasa_tag = %d\n',add_source_equals_datasa_tag);
+fprintf('   only_tertiary_residential_unclassified = %d \n',only_tertiary_residential_unclassified);
 fprintf('-----------------------------\n');
 
 fprintf('Based on your choice of those parameters,\n');
@@ -48,6 +51,9 @@ elseif include_different_road_type==1 && include_other==1
 else
     warning('The values you chose for include_different_road_type and include_other don''t make sense.');
     output_fn='warning.osm';
+end
+if only_tertiary_residential_unclassified
+    fprintf('...and then, only highway={tertiary, residential, unclassified}\n   (excluding track, motorway, trunk, primary, secondary)\n');
 end
 
 % "all_tag_strings" takes a long time to load,
@@ -136,8 +142,8 @@ for j=1:nw
     names{j}=x;
     
     canonical_names{j}=canonical_form(x);
-   
-    canonical_base_names{j}=canonical_form(NAME{j});    
+    
+    canonical_base_names{j}=canonical_form(NAME{j});
 end
 
 % Construct some data structures that allow fast mapping
@@ -186,7 +192,7 @@ for j=1:length(way_names)
         y = x(q+1:end);
         x=x(1:q-1);
     end
-
+    
     canonical_existing_base_names{j}=canonical_form(x);
     existing_road_types{j} = lower(y);
     
@@ -240,6 +246,30 @@ for jj=1:nw
     end
     if ~isempty(strfind(x,'slipway')); continue;end
     
+    if ~isempty(strfind(x,'busway')); continue;end
+    if ~isempty(strfind(x,'first')); continue;end
+    if ~isempty(strfind(x,'second')); continue;end
+    if ~isempty(strfind(x,'third')); continue;end
+    if ~isempty(strfind(x,'forth')); continue;end
+    if ~isempty(strfind(x,'fifth')); continue;end
+    if ~isempty(strfind(x,'sixth')); continue;end
+    if ~isempty(strfind(x,'seventh')); continue;end
+    if ~isempty(strfind(x,'eighth')); continue;end
+    if ~isempty(strfind(x,'ninth')); continue;end
+    if ~isempty(strfind(x,'tenth')); continue;end
+    if ~isempty(strfind(x,'one')); continue;end
+    if ~isempty(strfind(x,'two')); continue;end
+    if ~isempty(strfind(x,'three')); continue;end
+    
+    
+    if only_tertiary_residential_unclassified
+        if ~ (strcmp(CLASS{j}, 'COLL') || strcmp( CLASS{j}, 'LOCL'))
+            
+            continue;
+        end
+    end
+    
+    
     %if ~isempty(strfind(x,'elberry'))
     %    disp(0);
     %end
@@ -278,7 +308,7 @@ for jj=1:nw
     
     % If nothing found, look again but allow a different road type
     % (street, lane, etc)
-    if is_existing==0 
+    if is_existing==0
         xbase = canonical_base_names{j};
         val = string_to_val(xbase, 4);
         for kk=canonical_existing_base_index(val+1):(canonical_existing_base_index(val+2)-1)
@@ -555,6 +585,8 @@ missing_names={};
 unrecognised_class_strings={};
 for j=1:nw
     if ~save_way(j); continue;end
+    
+    
     wninds = wninds_cell{j};
     ns = nids(wninds);
     
