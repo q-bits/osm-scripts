@@ -239,7 +239,23 @@ for jj=1:nw
         continue;
     end
     if ~isempty(strfind(x,'slipway')); continue;end
+    if ~isempty(strfind(x,'busway')); continue;end
+
+    if ~isempty(strfind(x,'first')); continue;end
+    if ~isempty(strfind(x,'second')); continue;end
+    if ~isempty(strfind(x,'third')); continue;end
+    if ~isempty(strfind(x,'forth')); continue;end
+    if ~isempty(strfind(x,'fifth')); continue;end
+    if ~isempty(strfind(x,'sixth')); continue;end
+    if ~isempty(strfind(x,'seventh')); continue;end
+    if ~isempty(strfind(x,'eighth')); continue;end
+    if ~isempty(strfind(x,'ninth')); continue;end
+    if ~isempty(strfind(x,'tenth')); continue;end
     
+    if ~isempty(strfind(x,'one')); continue;end
+    if ~isempty(strfind(x,'two')); continue;end
+    if ~isempty(strfind(x,'three')); continue;end
+
     %if ~isempty(strfind(x,'elberry'))
     %    disp(0);
     %end
