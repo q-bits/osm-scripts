@@ -54,7 +54,8 @@ ex0s = zeros(nw,1);
 ex1s = ex0s;
 ey0s = ex0s;
 ey1s = ex0s;
-
+elats = cell(nw,1);
+elons = cell(nw,1);
 for j=1:nw
     these_wnids = wnids(wstarts(j):wstarts(j)+wlens(j)-1);
     these_wninds = full(ninds(these_wnids)); 
@@ -64,5 +65,7 @@ for j=1:nw
     ex1s(j) = max(xs);
     ey0s(j) = min(ys);
     ey1s(j) = max(ys);
+    elons{j} = xs;
+    elats{j} = ys;
 end
-save bboxes ex0s ex1s ey0s ey1s
+save bboxes ex0s ex1s ey0s ey1s elats elons

@@ -18,7 +18,7 @@ function find_missing_roads
 % Henry Haselgrove
 
 
-include_different_road_type=0;
+include_different_road_type=1;
 include_other=1;
 
 only_tertiary_residential_unclassified=1;
@@ -47,7 +47,7 @@ elseif include_different_road_type==0 && include_other==1
     output_fn='missing.osm';
 elseif include_different_road_type==1 && include_other==1
     fprintf('  -- all those which are missing (or misnamed) in OSM\n');
-    output_fn='missing_all.osm';
+    output_fn='missing.osm';
 else
     warning('The values you chose for include_different_road_type and include_other don''t make sense.');
     output_fn='warning.osm';
@@ -152,7 +152,7 @@ nidoffset = 1-min(nids);
 ninds=spconvert([nids+nidoffset,  0*nids+1,  (1:length(nids))' ]);
 wninds = full(ninds(wnids+nidoffset));
 
-% Calculate bounding boxes
+% Calculate bounding boxes  (datasa ways)
 wx0s = zeros(nw,1);
 wx1s = wx0s;
 wy0s = wx0s;
@@ -169,7 +169,7 @@ for j=1:nw
 end
 
 % Load data about existing OSM nodes
-load existing\bboxes.mat   %ex0s ex1s ey0s ey1s
+load existing\bboxes.mat   %ex0s ex1s ey0s ey1s elats elons
 global way_names highways
 if isempty(way_names)
     load existing\way_names.mat  % way_names
@@ -180,11 +180,9 @@ end
 canonical_existing_names = way_names;
 canonical_existing_base_names = way_names;
 existing_road_types=way_names;
-
 for j=1:length(way_names)
     x=way_names{j};
     canonical_existing_names{j}=canonical_form(x);
-    
     x=way_names{j};
     x=strtrim(x);
     q=find(x==' ',1,'last');
@@ -192,11 +190,8 @@ for j=1:length(way_names)
         y = x(q+1:end);
         x=x(1:q-1);
     end
-    
     canonical_existing_base_names{j}=canonical_form(x);
     existing_road_types{j} = lower(y);
-    
-    
 end
 
 %save existing_road_types existing_road_types
@@ -511,6 +506,187 @@ while(1)
     if change==0;break;end
 end
 
+fprintf('After joining: %d ways\n',sum(save_way));
+
+
+% For each "missing" datasa way, check if there is an existing OSM way that
+% closely matches its shape.
+tic;
+ji=0;
+step_size_=10;
+dthresh=25;
+athresh=25;
+for j=1:nw
+    
+    if ~save_way(j)
+        continue;
+    end
+    if strcmp(names{j}, 'mount stockdale road')
+        disp(0);
+    end
+    
+    ji=ji+1;
+    %bounding box:
+    x0 = wx0s(j); x1 = wx1s(j);
+    y0 = wy0s(j); y1 = wy1s(j);
+    
+    % Find existing ways with bounding boxes close to that datasa one
+    % (saves time in inner loops below)
+    dxs=interval_dist_v(x0,x1,ex0s,ex1s);
+    dys=interval_dist_v(y0,y1,ey0s,ey1s);
+    ds=max([dxs*lonscale,dys*latscale]');
+    f = ds<dthresh;
+    ff = find(f);
+    nff=length(ff);
+    
+    
+    % Walk along the way, taking small steps
+
+    these_wninds = wninds_cell{j};
+    lat=lats(these_wninds);
+    lon=lons(these_wninds);
+    scaled_diffs_x = diff(lon)*lonscale;
+    scaled_diffs_y = diff(lat)*latscale;
+    seglens = sqrt( (diff(lat)*latscale).^2 + (diff(lon)*lonscale).^2);
+    segdirs = atan2(scaled_diffs_y, scaled_diffs_x)*360/2/pi;
+    
+    totlen = sum(seglens);
+    
+    step_size=step_size_;  % metres, approx
+    nsteps = fix(totlen/step_size)+1;
+    if nsteps<3
+        step_size = totlen / 2.01;
+    elseif nsteps>100
+        step_size = totlen / 100.01;
+    end
+    nsteps = fix(totlen/step_size)+1;
+    slats = zeros(nsteps,1);
+    slons = zeros(nsteps,1);
+    sdirs = zeros(nsteps,1);
+    smatches=zeros(nsteps,1);
+
+    seg_ind=1;
+    seg_length_used=0;
+    
+    slats(1) = lat(1);
+    slons(1) = lon(1);
+    sdirs(1) = segdirs(1);
+    
+    current_seg_ind=1;
+    current_dist_left = seglens(1);
+    
+    for i=2:nsteps
+        current_dist_left = current_dist_left - step_size;
+        while(current_dist_left < 0 )
+             current_seg_ind = current_seg_ind +1;
+            current_dist_left = current_dist_left+seglens(current_seg_ind);
+           
+        end
+        r = current_dist_left/seglens(current_seg_ind);
+        
+        x = (1-r) * lon(current_seg_ind+1) + r * lon(current_seg_ind);
+        y = (1-r) * lat(current_seg_ind+1) + r * lat(current_seg_ind);
+        slons(i) = x;
+        slats(i) = y;
+        sdirs(i) = segdirs(current_seg_ind);
+    end
+    
+    for i=1:nsteps
+        x=slons(i);
+        y=slats(i);
+        dir = sdirs(i);
+        match=0;
+        
+        % Loop over nearby existing ways
+        for ei = 1:nff
+            e=ff(ei);
+            wn = way_names{e};
+            if isempty(wn)
+                % Don't care about matches with existing ways 
+                % with no name, at the moment
+                continue;
+            end
+            
+           
+            ex0=ex0s(e); ex1=ex1s(e);
+            dx=0;if x<ex0; dx=ex0-x; elseif x>ex1; dx=x-ex1;end
+            if dx*lonscale > dthresh; continue;end 
+            
+            ey0=ey0s(e); ey1=ey1s(e);
+            dy=0;if y<ey0; dy=ey0-y; elseif y>ey1; dy=y-ey1;end
+            if dy*latscale > dthresh; continue;end  
+            
+            exs = elons{e};
+            eys = elats{e};
+            nen = length(exs);
+            
+            % loop over segments of existing way
+            for k=1:nen-1
+                % segment B.B.
+                ex0 = min([exs(k), exs(k+1)]);
+                ex1 = max([exs(k), exs(k+1)]);
+                ey0 = min([eys(k), eys(k+1)]);
+                ey1 = max([eys(k), eys(k+1)]);
+                
+                dx=0;if x<ex0; dx=ex0-x; elseif x>ex1; dx=x-ex1;end
+                if dx*lonscale > dthresh; continue;end 
+                
+                dy=0;if y<ey0; dy=ey0-y; elseif y>ey1; dy=y-ey1;end
+                if dy*latscale > dthresh; continue;end 
+                
+                v = [exs(k)*lonscale,eys(k)*latscale];
+                w = [exs(k+1)*lonscale,eys(k+1)*latscale];
+                p = [x*lonscale,y*latscale];
+                wv = w-v;
+                L2 = wv(1).^2 + wv(2).^2;
+                
+                t = dot( p-v, w-v)/L2;
+                if t<0 
+                    d = norm( p-v);
+                elseif t>1
+                    d = norm( p-w);
+                else
+                    q = v + t*(w-v);
+                    d = norm(p-q);
+                end
+                
+                if d > dthresh;  continue;end
+                
+                direction =atan2(  (eys(k+1) - eys(k) ) * latscale, (exs(k+1) - exs(k) ) * lonscale  )*360/2/pi;
+                
+                dd = mod (direction-dir, 180);
+                dd = min ([dd, 180-dd]);
+                
+                if dd<athresh
+                    
+                    
+                    match=1;
+                    
+                    
+                    break;
+                end
+                
+            end %for k  (segments in existing)
+            if match
+                break;
+            end
+           
+        end % for ei  (existing ways nearby)
+        
+        smatches(i)=match;
+        
+    end % for i (steps along way)
+    
+    nmatch=sum(smatches);
+    if nmatch/nsteps > .5
+        save_way(j)=0;
+    end
+    fprintf('%5d:  nsteps=%5d   nff=%5d  nmatch=%5d   %s\n',ji,nsteps,nff,nmatch, names{j});
+    drawnow;
+end
+toc
+
+
 fprintf('%d ways will be saved.\n',sum(save_way));
 
 
@@ -564,7 +740,6 @@ for j=1:nn
     if node_is_missing(j)
         lines_are_missing(n_line_starts(j):n_line_ends(j))=1;
     end
-    
 end
 
 
@@ -584,7 +759,7 @@ end
 missing_names={};
 unrecognised_class_strings={};
 for j=1:nw
-    if ~save_way(j); continue;end
+    if save_way(j)==0; continue;end
     
     
     wninds = wninds_cell{j};
