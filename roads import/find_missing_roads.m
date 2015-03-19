@@ -21,7 +21,7 @@ function find_missing_roads
 include_different_road_type=1;
 include_other=1;
 
-only_tertiary_residential_unclassified=1;
+only_tertiary_secondary_residential_unclassified=1;
 
 add_source_equals_datasa_tag=0;
 
@@ -33,7 +33,7 @@ fprintf(' Settings:\n');
 fprintf('   include_different_road_type = %d\n',include_different_road_type);
 fprintf('   include_other = %d\n',include_other);;
 fprintf('   add_source_equals_datasa_tag = %d\n',add_source_equals_datasa_tag);
-fprintf('   only_tertiary_residential_unclassified = %d \n',only_tertiary_residential_unclassified);
+fprintf('   only_tertiary_residential_unclassified = %d \n',only_tertiary_secondary_residential_unclassified);
 fprintf('-----------------------------\n');
 
 fprintf('Based on your choice of those parameters,\n');
@@ -52,8 +52,8 @@ else
     warning('The values you chose for include_different_road_type and include_other don''t make sense.');
     output_fn='warning.osm';
 end
-if only_tertiary_residential_unclassified
-    fprintf('...and then, only highway={tertiary, residential, unclassified}\n   (excluding track, motorway, trunk, primary, secondary)\n');
+if only_tertiary_secondary_residential_unclassified
+    fprintf('...and then, only highway={tertiary, residential, unclassified, secondary}\n   (excluding track, motorway, trunk, primary)\n');
 end
 
 % "all_tag_strings" takes a long time to load,
@@ -239,6 +239,14 @@ for jj=1:nw
     if ~isempty(strfind(xx,'ramp from')) || ~isempty(strfind(xx,'ramp to'))
         continue;
     end
+
+    if ~isempty(strfind(x,'access'))
+        continue;
+    end
+    if strcmp(xx,'gate a')
+        continue;
+    end
+    
     if ~isempty(strfind(x,'slipway')); continue;end
     
     if ~isempty(strfind(x,'busway')); continue;end
@@ -257,8 +265,8 @@ for jj=1:nw
     if ~isempty(strfind(x,'three')); continue;end
     
     
-    if only_tertiary_residential_unclassified
-        if ~ (strcmp(CLASS{j}, 'COLL') || strcmp( CLASS{j}, 'LOCL'))
+    if only_tertiary_secondary_residential_unclassified
+        if ~ (strcmp(CLASS{j}, 'COLL') || strcmp( CLASS{j}, 'LOCL') || strcmp( CLASS{j}, 'SUBA'))
             
             continue;
         end
