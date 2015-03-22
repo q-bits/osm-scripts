@@ -21,7 +21,7 @@ function find_missing_roads
 include_different_road_type=1;
 include_other=1;
 
-only_tertiary_secondary_residential_unclassified=1;
+exclude_track=1;
 
 add_source_equals_datasa_tag=0;
 
@@ -31,9 +31,9 @@ cost_threshold=200;
 fprintf('-----------------------------\n');
 fprintf(' Settings:\n');
 fprintf('   include_different_road_type = %d\n',include_different_road_type);
-fprintf('   include_other = %d\n',include_other);;
+fprintf('   include_other = %d\n',include_other);
 fprintf('   add_source_equals_datasa_tag = %d\n',add_source_equals_datasa_tag);
-fprintf('   only_tertiary_residential_unclassified = %d \n',only_tertiary_secondary_residential_unclassified);
+fprintf('   exclude_track = %d \n',exclude_track);
 fprintf('-----------------------------\n');
 
 fprintf('Based on your choice of those parameters,\n');
@@ -52,8 +52,8 @@ else
     warning('The values you chose for include_different_road_type and include_other don''t make sense.');
     output_fn='warning.osm';
 end
-if only_tertiary_secondary_residential_unclassified
-    fprintf('...and then, only highway={tertiary, residential, unclassified, secondary}\n   (excluding track, motorway, trunk, primary)\n');
+if exclude_track
+    fprintf('...and then, excluding highway=track.\n');
 end
 
 % "all_tag_strings" takes a long time to load,
@@ -265,17 +265,12 @@ for jj=1:nw
     if ~isempty(strfind(x,'three')); continue;end
     
     
-    if only_tertiary_secondary_residential_unclassified
-        if ~ (strcmp(CLASS{j}, 'COLL') || strcmp( CLASS{j}, 'LOCL') || strcmp( CLASS{j}, 'SUBA'))
-            
+    if exclude_track
+        if strcmp(CLASS{j},'TRK2') || strcmp(CLASS{j},'TRK4')  || isempty(CLASS{j}) || strcmp(CLASS{j},'UND')
             continue;
         end
     end
-    
-    
-    %if ~isempty(strfind(x,'elberry'))
-    %    disp(0);
-    %end
+   
     
     x2 = canonical_names_no_suffix{j};
     if strcmp(x,x2)
@@ -528,9 +523,6 @@ for j=1:nw
     
     if ~save_way(j)
         continue;
-    end
-    if strcmp(names{j}, 'mount stockdale road')
-        disp(0);
     end
     
     ji=ji+1;
