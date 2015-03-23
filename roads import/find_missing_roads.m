@@ -239,7 +239,7 @@ for jj=1:nw
     if ~isempty(strfind(xx,'ramp from')) || ~isempty(strfind(xx,'ramp to'))
         continue;
     end
-
+    
     if ~isempty(strfind(x,'access'))
         continue;
     end
@@ -270,7 +270,7 @@ for jj=1:nw
             continue;
         end
     end
-   
+    
     
     x2 = canonical_names_no_suffix{j};
     if strcmp(x,x2)
@@ -545,51 +545,11 @@ for j=1:nw
     these_wninds = wninds_cell{j};
     lat=lats(these_wninds);
     lon=lons(these_wninds);
-    scaled_diffs_x = diff(lon)*lonscale;
-    scaled_diffs_y = diff(lat)*latscale;
-    seglens = sqrt( (diff(lat)*latscale).^2 + (diff(lon)*lonscale).^2);
-    segdirs = atan2(scaled_diffs_y, scaled_diffs_x)*360/2/pi;
     
-    totlen = sum(seglens);
+    [slats, slons, sdirs] = walk_along_road(lat, lon, step_size_);
     
-    step_size=step_size_;  % metres, approx
-    nsteps = fix(totlen/step_size)+1;
-    if nsteps<3
-        step_size = totlen / 2.01;
-    elseif nsteps>100
-        step_size = totlen / 100.01;
-    end
-    nsteps = fix(totlen/step_size)+1;
-    slats = zeros(nsteps,1);
-    slons = zeros(nsteps,1);
-    sdirs = zeros(nsteps,1);
+    nsteps=length(slats);
     smatches=zeros(nsteps,1);
-
-    seg_ind=1;
-    seg_length_used=0;
-    
-    slats(1) = lat(1);
-    slons(1) = lon(1);
-    sdirs(1) = segdirs(1);
-    
-    current_seg_ind=1;
-    current_dist_left = seglens(1);
-    
-    for i=2:nsteps
-        current_dist_left = current_dist_left - step_size;
-        while(current_dist_left < 0 )
-             current_seg_ind = current_seg_ind +1;
-            current_dist_left = current_dist_left+seglens(current_seg_ind);
-           
-        end
-        r = current_dist_left/seglens(current_seg_ind);
-        
-        x = (1-r) * lon(current_seg_ind+1) + r * lon(current_seg_ind);
-        y = (1-r) * lat(current_seg_ind+1) + r * lat(current_seg_ind);
-        slons(i) = x;
-        slats(i) = y;
-        sdirs(i) = segdirs(current_seg_ind);
-    end
     
     for i=1:nsteps
         x=slons(i);
@@ -602,19 +562,19 @@ for j=1:nw
             e=ff(ei);
             wn = way_names{e};
             if isempty(wn)
-                % Don't care about matches with existing ways 
+                % Don't care about matches with existing ways
                 % with no name, at the moment
                 continue;
             end
             
-           
+            
             ex0=ex0s(e); ex1=ex1s(e);
             dx=0;if x<ex0; dx=ex0-x; elseif x>ex1; dx=x-ex1;end
-            if dx*lonscale > dthresh; continue;end 
+            if dx*lonscale > dthresh; continue;end
             
             ey0=ey0s(e); ey1=ey1s(e);
             dy=0;if y<ey0; dy=ey0-y; elseif y>ey1; dy=y-ey1;end
-            if dy*latscale > dthresh; continue;end  
+            if dy*latscale > dthresh; continue;end
             
             exs = elons{e};
             eys = elats{e};
@@ -629,10 +589,10 @@ for j=1:nw
                 ey1 = max([eys(k), eys(k+1)]);
                 
                 dx=0;if x<ex0; dx=ex0-x; elseif x>ex1; dx=x-ex1;end
-                if dx*lonscale > dthresh; continue;end 
+                if dx*lonscale > dthresh; continue;end
                 
                 dy=0;if y<ey0; dy=ey0-y; elseif y>ey1; dy=y-ey1;end
-                if dy*latscale > dthresh; continue;end 
+                if dy*latscale > dthresh; continue;end
                 
                 v = [exs(k)*lonscale,eys(k)*latscale];
                 w = [exs(k+1)*lonscale,eys(k+1)*latscale];
@@ -641,7 +601,7 @@ for j=1:nw
                 L2 = wv(1).^2 + wv(2).^2;
                 
                 t = dot( p-v, w-v)/L2;
-                if t<0 
+                if t<0
                     d = norm( p-v);
                 elseif t>1
                     d = norm( p-w);
@@ -670,7 +630,7 @@ for j=1:nw
             if match
                 break;
             end
-           
+            
         end % for ei  (existing ways nearby)
         
         smatches(i)=match;
@@ -885,6 +845,60 @@ if length(u)>0
 end
 
 fprintf('Wrote file %s\n',output_fn);
+
+
+function  [slats, slons, sdirs] = walk_along_road(lat, lon, step_size_)
+
+
+Re = 6371000;
+latscale = Re * 2*pi/360;
+lonscale = Re * cos(35.6 * 2 * pi/360) * 2 * pi/360;
+
+scaled_lon=lon*lonscale;
+scaled_lat=lat*latscale;
+scaled_diffs_x = diff(scaled_lon);
+scaled_diffs_y = diff(scaled_lat);
+seglens = sqrt( scaled_diffs_x.^2 + scaled_diffs_y.^2);
+segdirs = atan2(scaled_diffs_y, scaled_diffs_x)*360/2/pi;
+
+totlen = sum(seglens);
+
+step_size=step_size_;  % metres, approx
+nsteps = fix(totlen/step_size)+1;
+if nsteps<3
+    step_size = totlen / 2.01;
+elseif nsteps>100
+    step_size = totlen / 100.01;
+end
+nsteps = fix(totlen/step_size)+1;
+slats = zeros(nsteps,1);
+slons = zeros(nsteps,1);
+sdirs = zeros(nsteps,1);
+
+
+slats(1) = lat(1);
+slons(1) = lon(1);
+sdirs(1) = segdirs(1);
+
+current_seg_ind=1;
+current_dist_left = seglens(1);
+
+for i=2:nsteps
+    current_dist_left = current_dist_left - step_size;
+    while(current_dist_left < 0 )
+        current_seg_ind = current_seg_ind +1;
+        current_dist_left = current_dist_left+seglens(current_seg_ind);
+        
+    end
+    r = current_dist_left/seglens(current_seg_ind);
+    
+    x = (1-r) * lon(current_seg_ind+1) + r * lon(current_seg_ind);
+    y = (1-r) * lat(current_seg_ind+1) + r * lat(current_seg_ind);
+    slons(i) = x;
+    slats(i) = y;
+    sdirs(i) = segdirs(current_seg_ind);
+end
+
 
 % TODO: Improve titlecase function!
 %   E.g. should detect acronyms like ETSA, NW, SWER
